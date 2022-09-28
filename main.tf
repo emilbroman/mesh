@@ -61,6 +61,10 @@ module "cert_manager" {
   ingress_class = module.ingress_controller.ingress_class
 }
 
+module "logs" {
+  source = "./modules/logs"
+}
+
 resource "google_dns_record_set" "this" {
   for_each = toset(["", "*."])
 
