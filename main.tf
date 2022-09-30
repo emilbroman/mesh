@@ -51,9 +51,21 @@ provider "helm" {
   }
 }
 
+module "postgres" {
+  source                 = "./modules/postgres"
+  certificate_issuer_ref = module.cert_manager.self_signed_issuer_ref
+}
+
 module "ingress_controller" {
-  source                  = "./modules/ingress-controller"
-  certificate_secret_name = module.cert_manager.certificate_secret_name
+  source                 = "./modules/ingress-controller"
+  certificate_issuer_ref = module.cert_manager.issuer_ref
+  exposed_tcp_services = [
+    {
+      namespace = module.postgres.namespace
+      name      = module.postgres.service_name
+      port      = module.postgres.service_port
+    }
+  ]
 }
 
 module "cert_manager" {

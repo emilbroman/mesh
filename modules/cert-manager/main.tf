@@ -11,10 +11,14 @@ resource "helm_release" "this" {
   repository = "https://charts.jetstack.io"
   chart      = "cert-manager"
 
-  set {
-    name  = "installCRDs"
-    value = "true"
-  }
+  values = [yamlencode({
+    installCRDs = true
+
+    extraArgs = [
+      "--dns01-recursive-nameservers-only",
+      "--dns01-recursive-nameservers=8.8.8.8:53,1.1.1.1:53",
+    ]
+  })]
 }
 
 data "google_client_config" "current" {}
@@ -48,10 +52,9 @@ resource "kubernetes_secret_v1" "solver_auth" {
 resource "kubernetes_manifest" "issuer" {
   manifest = {
     apiVersion = "cert-manager.io/v1"
-    kind       = "Issuer"
+    kind       = "ClusterIssuer"
     metadata = {
-      name      = "letsencrypt-production"
-      namespace = kubernetes_namespace_v1.this.metadata[0].name
+      name = "letsencrypt-production"
     }
     spec = {
       acme = {
@@ -78,24 +81,15 @@ resource "kubernetes_manifest" "issuer" {
   }
 }
 
-locals {
-  certificate_secret_name = "emilbroman-me-tls"
-}
-
-resource "kubernetes_manifest" "cert" {
+resource "kubernetes_manifest" "self_signed_issuer" {
   manifest = {
     apiVersion = "cert-manager.io/v1"
-    kind       = "Certificate"
+    kind       = "ClusterIssuer"
     metadata = {
-      name      = "certificate"
-      namespace = kubernetes_namespace_v1.this.metadata[0].name
+      name = "self-signed"
     }
     spec = {
-      secretName = local.certificate_secret_name
-      issuerRef = {
-        name = kubernetes_manifest.issuer.manifest.metadata.name
-      }
-      dnsNames = ["*.emilbroman.me", "emilbroman.me"]
+      selfSigned = {}
     }
   }
 }

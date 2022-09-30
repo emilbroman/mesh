@@ -9,6 +9,26 @@ resource "random_id" "ingress_class" {
   byte_length = 4
 }
 
+locals {
+  certificate_secret_name = "emilbroman-me-tls"
+}
+
+resource "kubernetes_manifest" "cert" {
+  manifest = {
+    apiVersion = "cert-manager.io/v1"
+    kind       = "Certificate"
+    metadata = {
+      name      = "certificate"
+      namespace = kubernetes_namespace_v1.this.metadata[0].name
+    }
+    spec = {
+      secretName = local.certificate_secret_name
+      issuerRef  = var.certificate_issuer_ref
+      dnsNames   = ["*.emilbroman.me", "emilbroman.me"]
+    }
+  }
+}
+
 resource "helm_release" "this" {
   name      = "nginx-ingress-controller"
   namespace = kubernetes_namespace_v1.this.metadata[0].name
@@ -16,20 +36,23 @@ resource "helm_release" "this" {
   repository = "https://kubernetes.github.io/ingress-nginx"
   chart      = "ingress-nginx"
 
-  set {
-    name  = "controller.ingressClassResource.name"
-    value = random_id.ingress_class.hex
-  }
-
-  set {
-    name  = "controller.extraArgs.default-ssl-certificate"
-    value = var.certificate_secret_name
-  }
-
-  set {
-    name  = "controller.config.force-ssl-redirect"
-    value = "true"
-  }
+  values = [yamlencode({
+    controller = {
+      ingressClassResource = {
+        name = random_id.ingress_class.hex
+      }
+      extraArgs = {
+        "default-ssl-certificate" = local.certificate_secret_name
+      }
+      config = {
+        "force-ssl-redirect" = true
+      }
+    }
+    tcp = {
+      for service in var.exposed_tcp_services :
+      service.port => "${service.namespace}/${service.name}:${service.port}"
+    }
+  })]
 }
 
 data "kubernetes_service_v1" "this" {

@@ -1,3 +1,15 @@
-output "certificate_secret_name" {
-  value = "${kubernetes_namespace_v1.this.metadata[0].name}/${local.certificate_secret_name}"
+output "issuer_ref" {
+  value = {
+    group = "cert-manager.io"
+    kind  = "ClusterIssuer"
+    name  = kubernetes_manifest.issuer.manifest.metadata.name
+  }
+}
+
+output "self_signed_issuer_ref" {
+  value = {
+    group = "cert-manager.io"
+    kind  = "ClusterIssuer"
+    name  = kubernetes_manifest.self_signed_issuer.manifest.metadata.name
+  }
 }
