@@ -5,31 +5,6 @@ resource "kubernetes_namespace_v1" "this" {
 }
 
 locals {
-  pvc_name = "postgres-data"
-}
-
-resource "kubernetes_persistent_volume_claim_v1" "this" {
-  metadata {
-    name      = local.pvc_name
-    namespace = kubernetes_namespace_v1.this.metadata[0].name
-  }
-
-  spec {
-    access_modes       = ["ReadWriteOnce"]
-    storage_class_name = "standard-rwo"
-    resources {
-      requests = {
-        storage = "20Gi"
-      }
-    }
-  }
-
-  depends_on = [
-    kubernetes_deployment_v1.this
-  ]
-}
-
-locals {
   labels = {
     "app.kubernetes.io/name"      = "postgres"
     "app.kubernetes.io/component" = "database"
@@ -82,20 +57,37 @@ resource "kubernetes_manifest" "cert" {
   }
 }
 
-resource "kubernetes_deployment_v1" "this" {
+resource "kubernetes_stateful_set_v1" "this" {
   metadata {
     name      = "postgres"
     namespace = kubernetes_namespace_v1.this.metadata[0].name
     labels    = local.labels
   }
 
-  wait_for_rollout = false
-
   spec {
     replicas = 1
 
+    service_name = "postgres"
+
     selector {
       match_labels = local.labels
+    }
+
+    volume_claim_template {
+      metadata {
+        name      = "postgres-data"
+        namespace = kubernetes_namespace_v1.this.metadata[0].name
+      }
+
+      spec {
+        access_modes       = ["ReadWriteOnce"]
+        storage_class_name = "standard-rwo"
+        resources {
+          requests = {
+            storage = "20Gi"
+          }
+        }
+      }
     }
 
     template {
@@ -127,7 +119,7 @@ resource "kubernetes_deployment_v1" "this" {
           }
 
           volume_mount {
-            name       = "data"
+            name       = "postgres-data"
             mount_path = "/var/lib/postgresql"
           }
 
@@ -141,13 +133,6 @@ resource "kubernetes_deployment_v1" "this" {
         security_context {
           run_as_user = 70
           fs_group    = 70
-        }
-
-        volume {
-          name = "data"
-          persistent_volume_claim {
-            claim_name = local.pvc_name
-          }
         }
 
         volume {
