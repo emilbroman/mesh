@@ -42,7 +42,7 @@ resource "helm_release" "this" {
         name = random_id.ingress_class.hex
       }
       extraArgs = {
-        "default-ssl-certificate" = local.certificate_secret_name
+        "default-ssl-certificate" = "${kubernetes_namespace_v1.this.metadata[0].name}/${local.certificate_secret_name}"
       }
       config = {
         "force-ssl-redirect" = true
